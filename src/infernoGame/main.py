@@ -38,24 +38,28 @@ class InfernoGame:
 
     def loadAssets(self):
         """
-        Loads images from disk. If not found, variables are set to None.
+        Loads images from disk using paths defined in settings.
+        If not found, variables are set to None.
         """
         self.bgStartImg = self.loadImage(bgStartImage)
         self.bgGameImg = self.loadImage(bgGameImage)
         self.playerImg = self.loadImage(playerImage)
         self.platformImg = self.loadImage(platformImage)
-        # Note: bgStartImage etc. must be defined in settings.py
+        
+        # Check if assets folder exists to warn the user
+        if not os.path.exists(assetsFolder):
+            print(f"Warning: The folder '{assetsFolder}' was not found.")
 
-    def loadImage(self, fileName):
+    def loadImage(self, filePath):
         """
         Helper to safely load an image.
         """
-        if os.path.exists(fileName):
+        if os.path.exists(filePath):
             try:
-                img = pygame.image.load(fileName).convert()
+                img = pygame.image.load(filePath).convert_alpha()
                 return img
-            except pygame.error:
-                print(f"Error loading image: {fileName}")
+            except pygame.error as e:
+                print(f"Error loading image: {filePath} - {e}")
         return None
 
     def loadHighScores(self):
@@ -85,10 +89,11 @@ class InfernoGame:
         self.platforms.empty()
         self.hazards.empty()
 
-        # Pass 'self' (game instance) to sprites so they can access assets
+        # Pass 'self' to sprites so they can access loaded assets
         self.player = Player(self)
         self.allSprites.add(self.player)
 
+        # Base platform
         basePlatform = Platform(self, 0, screenHeight - 60, screenWidth, 40)
         self.allSprites.add(basePlatform)
         self.platforms.add(basePlatform)
@@ -101,6 +106,9 @@ class InfernoGame:
             self.spawnPlatform()
 
     def spawnPlatform(self):
+        """
+        Platform generation adapted for the wider screen.
+        """
         if len(self.platforms) == 0:
             lastX = screenWidth // 2
             lastY = screenHeight
@@ -109,11 +117,14 @@ class InfernoGame:
             lastX = lastPlatform.rect.centerx
             lastY = lastPlatform.rect.y
 
+        # Determine reachable range
         minX = max(0, lastX - maxJumpDistance)
         maxX = min(screenWidth - platformMaxW, lastX + maxJumpDistance)
         width = random.randrange(platformMinW, platformMaxW)
         
-        if maxX + width > screenWidth: maxX = screenWidth - width
+        if maxX + width > screenWidth:
+            maxX = screenWidth - width
+        
         if minX > maxX:
             minX = max(0, screenWidth // 2 - maxJumpDistance)
             maxX = min(screenWidth - width, screenWidth // 2 + maxJumpDistance)
@@ -151,21 +162,21 @@ class InfernoGame:
             else:
                 self.screen.fill(colorBlack)
             
-            # UI Elements
-            self.drawText("InfernoGame", fontSizeTitle, colorLava, screenWidth / 2, 80)
-            self.drawText("Escape the Depths", fontSizeSubtitle, colorWhite, screenWidth / 2, 150)
-            self.drawText("TOP PLAYERS", fontSizeText, colorAccent, screenWidth / 2, 250)
+            # UI Elements - Adjusted for 1440px width
+            self.drawText("InfernoGame", fontSizeTitle, colorLava, screenWidth / 2, 100)
+            self.drawText("Escape the Depths", fontSizeSubtitle, colorWhite, screenWidth / 2, 200)
+            self.drawText("TOP PLAYERS", fontSizeText, colorAccent, screenWidth / 2, 320)
             
-            yPos = 300
+            yPos = 380
             if not self.highScores:
                 self.drawText("No scores yet!", fontSizeText, colorSecondaryText, screenWidth / 2, yPos)
             else:
                 for idx, entry in enumerate(self.highScores):
                     scoreText = f"{idx + 1}. {entry['name']} - {entry['score']}"
                     self.drawText(scoreText, fontSizeText, colorWhite, screenWidth / 2, yPos)
-                    yPos += 35
+                    yPos += 40
 
-            inputY = screenHeight - 250
+            inputY = screenHeight - 300
             self.drawText("ENTER YOUR NAME:", fontSizeSubtitle, colorPlatform, screenWidth / 2, inputY)
             cursor = "|" if (pygame.time.get_ticks() // 500) % 2 == 0 else ""
             self.drawText(self.playerName + cursor, fontSizeSubtitle, colorWhite, screenWidth / 2, inputY + 60)
@@ -183,7 +194,7 @@ class InfernoGame:
                     elif event.key == pygame.K_BACKSPACE:
                         self.playerName = self.playerName[:-1]
                     else:
-                        if len(self.playerName) < 12 and event.unicode.isprintable():
+                        if len(self.playerName) < 15 and event.unicode.isprintable():
                             self.playerName += event.unicode
 
     def showGameOverScreen(self):
@@ -193,9 +204,9 @@ class InfernoGame:
         while waiting:
             self.clock.tick(frameRate)
             
-            # Draw game background faintly or black
             if self.bgGameImg:
-                self.screen.blit(pygame.transform.scale(self.bgGameImg, (screenWidth, screenHeight)), (0, 0))
+                scaledBg = pygame.transform.scale(self.bgGameImg, (screenWidth, screenHeight))
+                self.screen.blit(scaledBg, (0, 0))
             else:
                 self.screen.fill(colorBlack)
 
@@ -243,21 +254,13 @@ class InfernoGame:
         if self.player.velocityY > 0:
             hits = pygame.sprite.spritecollide(self.player, self.platforms, False)
             if hits:
-                # Find the lowest platform (highest Y coord) that is below the player's feet
-                # Actually we want the platform whose TOP is closest to player's BOTTOM
-                # And valid only if we are falling onto it.
-                
                 lowestHit = None
                 for hit in hits:
-                    # Tolerance check: 
-                    # Did we fall through it this frame? (Previous frame bottom < hit top)
-                    # Or are we just slightly inside it?
                     if self.player.rect.bottom < hit.rect.bottom:
                         if lowestHit is None or hit.rect.top < lowestHit.rect.top:
                             lowestHit = hit
                 
                 if lowestHit:
-                    # Snap player to top of platform
                     if self.player.rect.bottom > lowestHit.rect.top:
                         self.player.rect.bottom = lowestHit.rect.top
                         self.player.velocityY = 0
@@ -282,9 +285,7 @@ class InfernoGame:
             self.isPlaying = False
 
     def drawScene(self):
-        # Draw Background
         if self.bgGameImg:
-            # Simple static background (could be made scrolling later)
             scaledBg = pygame.transform.scale(self.bgGameImg, (screenWidth, screenHeight))
             self.screen.blit(scaledBg, (0, 0))
         else:

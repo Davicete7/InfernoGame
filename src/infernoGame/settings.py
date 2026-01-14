@@ -5,25 +5,25 @@ Following PEP 8 standards and camelCase naming convention.
 import os
 
 # Screen dimensions
-screenWidth = 720
+screenWidth = 1440
 screenHeight = 900
 frameRate = 60
 
 # Physics constants
 gravityValue = 0.8
 jumpStrength = -22
-playerSpeed = 6
+playerSpeed = 8
 
 # Platform generation settings
-maxPlatforms = 10
-platformMinW = 70
-platformMaxW = 140
-platformHeight = 25
+maxPlatforms = 15
+platformMinW = 100
+platformMaxW = 220
+platformHeight = 30
 
 # Separation settings
-platformMinYGap = 110
-platformMaxYGap = 190
-maxJumpDistance = 220
+platformMinYGap = 100
+platformMaxYGap = 180
+maxJumpDistance = 350
 
 # Lava settings
 lavaRiseSpeed = 0.6
@@ -39,17 +39,24 @@ colorAccent = (255, 215, 0)
 
 # Font settings
 fontName = 'arial'
-fontSizeTitle = 64
-fontSizeSubtitle = 36
-fontSizeText = 28
+fontSizeTitle = 80
+fontSizeSubtitle = 48
+fontSizeText = 32
 
 # File settings
-highScoreFile = "highscores.json"
+# Use absolute path for highscores too
+baseDir = os.path.dirname(__file__)
+highScoreFile = os.path.join(baseDir, "highscores.json")
 
-# Image Assets (Filenames)
-# Ensure these files exist in your project folder, or the game will use colors.
-bgStartImage = "bg_start.png"
-bgGameImage = "bg_game.png"
-playerImage = "player.png"
-platformImage = "platform.png"
-lavaImage = "lava.png" # Optional, can remain a rect
+# Asset Paths Configuration
+# Construct absolute paths to ensure assets are found regardless of execution context
+assetsFolder = os.path.join(baseDir, "assets")
+imagesFolder = os.path.join(assetsFolder, "images")
+soundsFolder = os.path.join(assetsFolder, "sounds")
+
+# Image File Paths
+bgStartImage = os.path.join(imagesFolder, "bg_start.png")
+bgGameImage = os.path.join(imagesFolder, "bg_game.png")
+playerImage = os.path.join(imagesFolder, "player.png")
+platformImage = os.path.join(imagesFolder, "platform.png")
+lavaImage = os.path.join(imagesFolder, "lava.png")
