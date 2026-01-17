@@ -13,12 +13,13 @@ frameRate = 60
 gravityValue = 0.8
 jumpStrength = -24
 playerSpeed = 9
+terminalVelocity = 12  # MAX falling speed
 
 # --- Platform Generation Settings ---
 maxPlatforms = 10
 platformMinW = 300
 platformMaxW = 600
-platformHeight = 35
+platformHeight = 80  # Thickness
 
 # --- Separation Settings ---
 platformMinYGap = 220
@@ -26,13 +27,12 @@ platformMaxYGap = 340
 maxJumpDistance = 600
 
 # --- Lava Settings ---
-lavaRiseSpeed = 4
+lavaRiseSpeed = 5
 
 # --- Difficulty Thresholds (Score) ---
-# Adjusted for faster progression and higher difficulty
-difficultyTier1 = 10    # Spikes start appearing
-difficultyTier2 = 20    # Patrol Enemies start appearing
-difficultyTier3 = 30    # Ranged Enemies start appearing
+difficultyTier1 = 5
+difficultyTier2 = 12
+difficultyTier3 = 20
 
 # --- Color Definitions (RGB) ---
 colorBlack = (0, 0, 0)

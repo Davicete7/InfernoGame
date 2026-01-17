@@ -7,15 +7,30 @@ LAYER_PLATFORM = 1
 LAYER_ENTITIES = 2
 LAYER_LAVA = 3
 
+
+def trim_image(img, min_height=10):
+    """
+    Automatic cropping: Removes transparent margins.
+    Safety: Prevents creating rects too small for physics.
+    """
+    try:
+        rect = img.get_bounding_rect()
+        if rect.height < min_height:
+            return img
+        return img.subsurface(rect).copy()
+    except ValueError:
+        return img
+
+
 class Player(pygame.sprite.Sprite):
     def __init__(self, game):
         self._layer = LAYER_ENTITIES
         super().__init__()
         self.game = game
-        
-        # --- Load Animation States ---
+
         if self.game.playerImg:
-            self.walk_img = pygame.transform.scale(self.game.playerImg, (40, 50))
+            raw_walk = pygame.transform.scale(self.game.playerImg, (40, 50))
+            self.walk_img = trim_image(raw_walk)
             self.walk_img.set_colorkey(colorBlack)
         else:
             self.walk_img = pygame.Surface((30, 40))
@@ -23,7 +38,8 @@ class Player(pygame.sprite.Sprite):
 
         jump_img_source = getattr(self.game, 'playerJumpImg', None)
         if jump_img_source:
-            self.jump_img = pygame.transform.scale(jump_img_source, (40, 50))
+            raw_jump = pygame.transform.scale(jump_img_source, (40, 50))
+            self.jump_img = trim_image(raw_jump)
             self.jump_img.set_colorkey(colorBlack)
         else:
             self.jump_img = self.walk_img.copy()
@@ -32,7 +48,7 @@ class Player(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.center = (screenWidth // 2, screenHeight - 150)
         self.mask = pygame.mask.from_surface(self.image)
-        
+
         self.velocityX = 0
         self.velocityY = 0
         self.onGround = False
@@ -41,34 +57,38 @@ class Player(pygame.sprite.Sprite):
     def update(self):
         self.applyGravity()
         self.handleMovement()
-        self.animate()
-        
+        # Animation is handled in main.py
+
         self.rect.x += self.velocityX
         self.rect.y += self.velocityY
-        
+
         if self.rect.right > screenWidth:
             self.rect.left = 0
         if self.rect.left < 0:
             self.rect.right = screenWidth
 
     def animate(self):
-        previous_center = self.rect.center
-        
+        previous_bottom = self.rect.bottom
+        previous_center_x = self.rect.centerx
+
         if self.onGround:
             current_img = self.walk_img
         else:
             current_img = self.jump_img
-            
+
         if not self.facingRight:
             current_img = pygame.transform.flip(current_img, True, False)
-            
+
         self.image = current_img
         self.rect = self.image.get_rect()
-        self.rect.center = previous_center
+        self.rect.bottom = previous_bottom
+        self.rect.centerx = previous_center_x
         self.mask = pygame.mask.from_surface(self.image)
 
     def applyGravity(self):
         self.velocityY += gravityValue
+        if self.velocityY > terminalVelocity:
+            self.velocityY = terminalVelocity
 
     def handleMovement(self):
         self.velocityX = 0
@@ -98,7 +118,7 @@ class Platform(pygame.sprite.Sprite):
         else:
             self.image = pygame.Surface((width, height))
             self.image.fill(colorPlatform)
-        
+
         self.rect = self.image.get_rect()
         self.rect.x = x
         self.rect.y = y
@@ -107,7 +127,7 @@ class Platform(pygame.sprite.Sprite):
 
 class Lava(pygame.sprite.Sprite):
     def __init__(self, game):
-        self._layer = LAYER_LAVA  # Top layer!
+        self._layer = LAYER_LAVA
         super().__init__()
         self.game = game
         if self.game.lavaImg:
@@ -119,14 +139,13 @@ class Lava(pygame.sprite.Sprite):
             self.image = pygame.Surface((screenWidth, screenHeight * 2))
             self.image.fill(colorLava)
             self.image.set_alpha(200)
-        
+
         self.rect = self.image.get_rect()
         self.rect.top = screenHeight
         self.mask = pygame.mask.from_surface(self.image)
 
     def update(self):
         self.rect.y -= lavaRiseSpeed
-        # Stick to bottom if hidden
         if self.rect.top > screenHeight:
             self.rect.top = screenHeight
 
@@ -141,11 +160,13 @@ class Spike(pygame.sprite.Sprite):
         self.platform = platform
 
         if self.game.spikeImg:
-            self.image = pygame.transform.scale(self.game.spikeImg, (40, 30))
+            # SIZE: (180, 135)
+            raw_img = pygame.transform.scale(self.game.spikeImg, (180, 135))
+            self.image = trim_image(raw_img)
         else:
-            self.image = pygame.Surface((30, 20), pygame.SRCALPHA)
+            self.image = pygame.Surface((180, 135), pygame.SRCALPHA)
             pygame.draw.polygon(
-                self.image, colorSpike, [(0, 20), (15, 0), (30, 20)]
+                self.image, colorSpike, [(0, 135), (90, 0), (180, 135)]
             )
 
         self.rect = self.image.get_rect()
@@ -156,8 +177,9 @@ class Spike(pygame.sprite.Sprite):
             offset = random.randint(0, int(maxOffset))
         else:
             offset = 0
-            
-        self.rect.bottom = platform.rect.top
+
+        # VISUAL FIX: Overlap +35 pixels
+        self.rect.bottom = platform.rect.top + 35
         self.rect.x = platform.rect.x + offset
 
     def update(self):
@@ -165,7 +187,7 @@ class Spike(pygame.sprite.Sprite):
             self.kill()
             return
 
-        self.rect.bottom = self.platform.rect.top
+        self.rect.bottom = self.platform.rect.top + 35
         self.rect.x = max(
             self.platform.rect.x,
             min(self.rect.x, self.platform.rect.right - self.rect.width)
@@ -182,17 +204,20 @@ class PatrolEnemy(pygame.sprite.Sprite):
         self.platform = platform
 
         if self.game.enemyPatrolImg:
-            self.image = pygame.transform.scale(
-                self.game.enemyPatrolImg, (50, 50)
+            # SIZE: (100, 100)
+            raw_img = pygame.transform.scale(
+                self.game.enemyPatrolImg, (100, 100)
             )
+            self.image = trim_image(raw_img)
         else:
-            self.image = pygame.Surface((40, 40))
+            self.image = pygame.Surface((100, 100))
             self.image.fill(colorEnemyPatrol)
 
         self.rect = self.image.get_rect()
         self.mask = pygame.mask.from_surface(self.image)
-        
-        self.rect.bottom = platform.rect.top
+
+        # VISUAL FIX: +35 pixels overlap
+        self.rect.bottom = platform.rect.top + 35
         self.rect.centerx = platform.rect.centerx
 
         self.speed = 3
@@ -208,9 +233,10 @@ class PatrolEnemy(pygame.sprite.Sprite):
             self.direction = -1
         if self.rect.left < self.platform.rect.left:
             self.direction = 1
-        
-        self.rect.bottom = self.platform.rect.top
-        
+
+        # Maintain overlap
+        self.rect.bottom = self.platform.rect.top + 35
+
         if self.rect.top >= screenHeight:
             self.kill()
 
@@ -223,22 +249,28 @@ class RangedEnemy(pygame.sprite.Sprite):
         self.platform = platform
 
         if self.game.enemyRangedImg:
-            self.image = pygame.transform.scale(
-                self.game.enemyRangedImg, (40, 60)
+            raw_img = pygame.transform.scale(
+                self.game.enemyRangedImg, (80, 120)
             )
+            self.image = trim_image(raw_img)
         else:
-            self.image = pygame.Surface((30, 50))
+            self.image = pygame.Surface((80, 120))
             self.image.fill(colorEnemyRanged)
 
         self.rect = self.image.get_rect()
         self.mask = pygame.mask.from_surface(self.image)
-        
-        self.rect.bottom = platform.rect.top
+
+        # VISUAL FIX: +35 pixels overlap
+        self.rect.bottom = platform.rect.top + 35
+
+        # POSITION FIX: Move inwards from edges
+        margin = platform.rect.width // 6
+
         if random.choice([True, False]):
-            self.rect.left = platform.rect.left
+            self.rect.centerx = platform.rect.left + margin
             self.shootDir = 1
         else:
-            self.rect.right = platform.rect.right
+            self.rect.centerx = platform.rect.right - margin
             self.shootDir = -1
 
         self.lastShot = pygame.time.get_ticks()
@@ -249,12 +281,13 @@ class RangedEnemy(pygame.sprite.Sprite):
             self.kill()
             return
 
-        self.rect.bottom = self.platform.rect.top
+        # Maintain overlap
+        self.rect.bottom = self.platform.rect.top + 35
         now = pygame.time.get_ticks()
         if now - self.lastShot > self.shootDelay:
             self.lastShot = now
             self.shoot()
-        
+
         if self.rect.top >= screenHeight:
             self.kill()
 
@@ -274,9 +307,8 @@ class Projectile(pygame.sprite.Sprite):
         self.speed = 6 * direction
 
         if self.game.projectileImg:
-            self.image = pygame.transform.scale(
-                self.game.projectileImg, (40, 15)
-            )
+            raw_img = pygame.transform.scale(self.game.projectileImg, (40, 15))
+            self.image = trim_image(raw_img)
         else:
             self.image = pygame.Surface((20, 8))
             self.image.fill(colorProjectile)

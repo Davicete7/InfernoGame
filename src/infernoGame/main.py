@@ -35,7 +35,7 @@ class InfernoGame:
         self.highScores = self.loadHighScores()
 
         # Initialize sprite groups containers
-        # CHANGED: Use LayeredUpdates to respect drawing order (z-index)
+        # Use LayeredUpdates to respect drawing order (z-index)
         self.allSprites = pygame.sprite.LayeredUpdates()
         self.platforms = pygame.sprite.Group()
         self.hazards = pygame.sprite.Group()  # Lava, Spikes, Enemies
@@ -49,7 +49,7 @@ class InfernoGame:
         self.bgStartImg = self.loadImage(bgStartImage)
         self.bgGameImg = self.loadImage(bgGameImage)
         self.bgGameOverImg = self.loadImage(bgGameOverImage)
-        
+
         # Main entities
         self.playerImg = self.loadImage(playerImage)
         self.playerJumpImg = self.loadImage(playerJumpImage)
@@ -107,8 +107,10 @@ class InfernoGame:
         self.player = Player(self)
         self.allSprites.add(self.player)
 
-        # Base platform
-        basePlatform = Platform(self, 0, screenHeight - 60, screenWidth, 40)
+        # Base platform - FIXED SIZE AND POSITION
+        # Updated to use platformHeight (80)
+        baseY = screenHeight - platformHeight
+        basePlatform = Platform(self, 0, baseY, screenWidth, platformHeight)
         self.allSprites.add(basePlatform)
         self.platforms.add(basePlatform)
 
@@ -154,21 +156,18 @@ class InfernoGame:
     def spawnEnemy(self, platform):
         """
         Decides if an enemy spawns on the platform based on current Score.
-        High spawn rates for increased difficulty.
         """
         roll = random.random()  # 0.0 to 1.0
 
-        # Phase 1: Spikes Only (Score 10-20)
+        # Phase 1: Spikes Only
         if difficultyTier1 <= self.score < difficultyTier2:
-            # 50% chance of Spikes
             if roll < 0.5:
                 spike = Spike(self, platform)
                 self.allSprites.add(spike)
                 self.hazards.add(spike)
 
-        # Phase 2: Spikes + Patrol (Score 20-30)
+        # Phase 2: Spikes + Patrol
         elif difficultyTier2 <= self.score < difficultyTier3:
-            # 60% Total Chance (30% Spike, 30% Patrol)
             if roll < 0.3:
                 spike = Spike(self, platform)
                 self.allSprites.add(spike)
@@ -178,9 +177,8 @@ class InfernoGame:
                 self.allSprites.add(patrol)
                 self.hazards.add(patrol)
 
-        # Phase 3: Total Chaos (Score 30+)
+        # Phase 3: Total Chaos
         elif self.score >= difficultyTier3:
-            # 80% Total Chance (20% Spike, 30% Patrol, 30% Ranged)
             if roll < 0.2:
                 spike = Spike(self, platform)
                 self.allSprites.add(spike)
@@ -241,7 +239,8 @@ class InfernoGame:
                 )
             else:
                 for idx, entry in enumerate(self.highScores):
-                    scoreText = f"{idx + 1}. {entry['name']} - {entry['score']}"
+                    scoreText = (f"{idx + 1}. "
+                                 f"{entry['name']} - {entry['score']}")
                     self.drawText(
                         scoreText, fontSizeText,
                         colorWhite, screenWidth / 2, yPos
@@ -286,13 +285,11 @@ class InfernoGame:
         waiting = True
         while waiting:
             self.clock.tick(frameRate)
-            # Use the specific Game Over background if available
             if self.bgGameOverImg:
                 scaledBg = pygame.transform.scale(
                     self.bgGameOverImg, (screenWidth, screenHeight)
                 )
                 self.screen.blit(scaledBg, (0, 0))
-            # Fallback to the main game background
             elif self.bgGameImg:
                 scaledBg = pygame.transform.scale(
                     self.bgGameImg, (screenWidth, screenHeight)
@@ -359,51 +356,48 @@ class InfernoGame:
             if hits:
                 lowestHit = None
                 for hit in hits:
-                    if self.player.rect.bottom < hit.rect.bottom:
+                    # Check if player feet are above the CENTER of platform.
+                    if self.player.rect.bottom < hit.rect.centery:
                         condition = (
                             lowestHit is None or
                             hit.rect.top < lowestHit.rect.top
                         )
                         if condition:
                             lowestHit = hit
+
                 if lowestHit:
                     if self.player.rect.bottom > lowestHit.rect.top:
-                        self.player.rect.bottom = lowestHit.rect.top
+                        # VISUAL FIX: Sink 35px into the platform
+                        self.player.rect.bottom = lowestHit.rect.top + 35
                         self.player.velocityY = 0
                         self.player.onGround = True
 
-        # Hazard Collisions (Enemies, Spikes, Lava, Projectiles)
+        # Hazard Collisions
         hitHazard = pygame.sprite.spritecollide(
             self.player, self.hazards, False, pygame.sprite.collide_mask
         )
         if hitHazard:
             self.isPlaying = False
 
-        # Scrolling Camera Logic
-        # Changed threshold to screenHeight / 2 (Middle) so we see more above.
+        # Scrolling
         if self.player.rect.top <= screenHeight / 2:
             scrollSpeed = abs(self.player.velocityY)
             self.player.rect.y += scrollSpeed
-            
-            # Platforms moving down
+
             for plat in self.platforms:
                 plat.rect.y += scrollSpeed
                 if plat.rect.top >= screenHeight:
                     plat.kill()
                     self.score += 1
 
-            # Lava Logic during Scroll
             self.lava.rect.y += scrollSpeed
-            # Clamp lava again
             if self.lava.rect.top > screenHeight:
-                 self.lava.rect.top = screenHeight
+                self.lava.rect.top = screenHeight
 
-            # Scroll hazards
             for sprite in self.hazards:
                 if isinstance(sprite, (Lava, Spike, PatrolEnemy, RangedEnemy)):
                     pass
                 else:
-                    # Projectiles need manual move
                     sprite.rect.y += scrollSpeed
 
         while len(self.platforms) < maxPlatforms:
@@ -411,6 +405,8 @@ class InfernoGame:
 
         if self.player.rect.top > screenHeight:
             self.isPlaying = False
+
+        self.player.animate()
 
     def drawScene(self):
         if self.bgGameImg:

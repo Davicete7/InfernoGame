@@ -1,0 +1,9 @@
+Documentation generation steps:
+
+	1. Open terminal in src/infernogame or this route: 
+
+		C:\Users\David Sanchez\Desktop\UNI\4ºCURSO\SEMESTRE 7º\Scripting Lenguages\Laboratorio\Homework 4\InfernoGame\src\infernoGame
+
+	2. Execute this command:
+
+		python -m pydoc -b
